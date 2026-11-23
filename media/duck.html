@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+<style>
+  body { margin: 0; padding: 12px; display: flex; flex-direction: column; align-items: center; font-family: var(--vscode-font-family); color: var(--vscode-foreground); }
+  #bubble { min-height: 22px; margin-bottom: 4px; padding: 3px 10px; border-radius: 12px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, #888); font-size: 12px; opacity: 0; transition: opacity .2s; text-align: center; }
+  #bubble.show { opacity: 1; }
+  svg { width: 100%; max-width: 260px; overflow: visible; }
+  #stage { width: 100%; max-width: 280px; border-radius: 18px; padding: 4px 0 8px; background: radial-gradient(circle at 50% 34%, rgba(255, 217, 59, .14), transparent 42%); }
+  #water { transform-origin: 100px 182px; }
+  #duck { cursor: pointer; }
+  #controls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: min(100%, 260px); margin-top: 4px; }
+  #controls input, #controls select, #controls button { min-width: 0; border: 1px solid var(--vscode-editorWidget-border, #888); border-radius: 6px; padding: 5px 7px; color: var(--vscode-foreground); background: var(--vscode-input-background, transparent); font: inherit; font-size: 11px; }
+  #controls input { grid-column: span 2; }
+  #controls button { cursor: pointer; background: var(--vscode-button-background, #2f80ed); color: var(--vscode-button-foreground, #fff); }
+  #controls button:hover { background: var(--vscode-button-hoverBackground, #2468bd); }
+  #duckMenu { position: fixed; z-index: 4; display: none; flex-direction: column; gap: 3px; padding: 5px; border: 1px solid var(--vscode-editorWidget-border, #888); border-radius: 7px; background: var(--vscode-menu-background, #252526); box-shadow: 0 5px 18px rgba(0,0,0,.3); }
+  #duckMenu.show { display: flex; }
+  #duckMenu button { border: 0; padding: 5px 8px; text-align: left; color: var(--vscode-menu-foreground, #ddd); background: transparent; cursor: pointer; font: inherit; font-size: 11px; }
+  #duckMenu button:hover { background: var(--vscode-list-hoverBackground, #333); }
+  #nameLabel { grid-column: span 2; font-size: 10px; opacity: .75; }
+
+  .ov { opacity: 0; transition: opacity .2s; }
+  #eyeClosed { display: none; }
+
+  /* ---- hər state üçün hansı elementlər görünür ---- */
+  [data-state=error] .ov-error, [data-state=sad] .ov-error { opacity: 1; }
+  [data-state=sad] .ov-cloud { opacity: 1; }
+  [data-state=sleep] .ov-zzz { opacity: 1; }
+  [data-state=impatient] .ov-clock { opacity: 1; }
+  [data-state=typing] .ov-screen { opacity: 1; }
+  [data-state=typing] #eye { animation: blink 2.2s ease-in-out infinite; }
+  [data-state=fast] #eye { animation: bigEyes .45s ease-in-out infinite alternate; }
+  [data-state=fast] #duck { animation: startled .35s ease-in-out infinite alternate; }
+  [data-state=click] #duck, [data-state=head] #duck { animation: spinHop .7s ease-out; }
+  [data-state=angry] #duck { animation: angryShake .18s linear infinite; }
+  [data-state=feed] #duck { animation: nibble .3s ease-in-out infinite alternate; }
+  [data-state=feed] .ov-food { opacity: 1; animation: foodPop .8s ease-out forwards; }
+  [data-state=swim] #duck { animation: swim 1.4s ease-in-out infinite; }
+  [data-state=groom] #wing { animation: groom .55s ease-in-out infinite alternate; }
+  [data-state=look] #head { animation: curiousLook 1.3s ease-in-out infinite alternate; }
+  [data-state=break], [data-state=night] { background: radial-gradient(circle at 50% 34%, rgba(77, 171, 247, .18), transparent 44%); }
+  [data-state=night] .ov-night, [data-state=night] .nightCap { opacity: 1; }
+  [data-state=night] #duck { animation: nightSway 3s ease-in-out infinite; }
+  [data-state=break] #duck { animation: stretch 1.2s ease-in-out infinite alternate; }
+  [data-accessory=glasses] .glasses, [data-accessory=cap] .cap, [data-accessory=night] .nightCap { opacity: 1; }
+  [data-accessory=night] .nightCap { animation: capWiggle 2.5s ease-in-out infinite; }
+  [data-state=happy] .ov-sparkle, [data-state=dance] .ov-sparkle, [data-state=celebrate] .ov-sparkle { opacity: 1; }
+  [data-state=celebrate] .ov-heart { opacity: 1; }
+  [data-state=sleep] #eye { display: none; }
+  [data-state=sleep] #eyeClosed { display: block; }
+
+  /* ---- animasiyalar ---- */
+  #duck { transform-origin: 100px 172px; }
+  #head { transform-origin: 108px 108px; }
+  #wing { transform-origin: 92px 125px; }
+  #foot2 { transform-origin: 112px 172px; }
+  #eye { transform-box: fill-box; transform-origin: center; }
+  #beak { transform-origin: 146px 92px; }
+
+  [data-state=idle] #duck { animation: bob 3s ease-in-out infinite; }
+  [data-state=idle] #eye { animation: blink 4.8s ease-in-out infinite; }
+  [data-state=idle] #water { animation: ripple 2.8s ease-in-out infinite; }
+  [data-state=greet] #wing { animation: wave .5s ease-in-out infinite; }
+  [data-state=greet] #duck { animation: greetBounce 1s ease-in-out infinite; }
+  [data-state=greet] #head { animation: nod .7s ease-in-out infinite alternate; }
+  [data-state=greet] #beak { animation: talk .35s ease-in-out infinite alternate; }
+  [data-state=typing] #head { animation: look .5s ease-in-out infinite alternate; }
+  [data-state=typing] #eye { animation: blink 2.2s ease-in-out infinite; }
+  [data-state=typing] #water { animation: ripple 1.1s ease-in-out infinite; }
+  [data-state=error] #duck { animation: shake .35s linear infinite; }
+  [data-state=error] #head, [data-state=sad] #head { transform: rotate(-10deg); }
+  [data-state=error] .ov-error { animation: popIn .35s ease-out both; }
+  [data-state=happy] #duck { animation: happyHop .6s ease-in-out infinite; }
+  [data-state=happy] #head { animation: nod .6s ease-in-out infinite alternate; }
+  [data-state=happy] #wing, [data-state=celebrate] #wing, [data-state=dance] #wing { animation: wave .3s ease-in-out infinite; }
+  [data-state=dance] #duck { animation: dance .5s ease-in-out infinite alternate; }
+  [data-state=dance] #foot1 { animation: footTap .25s ease-in-out infinite alternate; transform-origin: 96px 172px; }
+  [data-state=dance] #foot2 { animation: footTap .25s .12s ease-in-out infinite alternate; }
+  [data-state=celebrate] #duck { animation: celebrateJump .45s ease-in-out infinite; }
+  [data-state=celebrate] #head { animation: celebrateHead .7s ease-in-out infinite; }
+  [data-state=sad] #duck { transform: scaleY(.93); }
+  [data-state=sad] #head { transform: rotate(-22deg) translateY(4px); }
+  [data-state=sleep] #head { transform: rotate(-24deg) translateY(6px); }
+  [data-state=sleep] #duck { animation: breathe 3.5s ease-in-out infinite; }
+  [data-state=impatient] #foot2 { animation: tap .4s ease-in-out infinite; }
+  [data-state=impatient] #head { animation: glance 2s ease-in-out infinite; }
+  [data-state=error] .tear, [data-state=sad] .tear { animation: tear 1s ease-in infinite; }
+  [data-state=sleep] .zzz { animation: float 2.4s ease-in-out infinite; }
+  [data-state=impatient] #clockHand { animation: spin 1.5s linear infinite; transform-origin: 38px 52px; }
+  [data-state=impatient] #duck { animation: impatientBounce .8s ease-in-out infinite; }
+  [data-state=impatient] #beak { animation: talk .8s ease-in-out infinite alternate; }
+  [data-state=sleep] #duck { animation: breathe 3.5s ease-in-out infinite; }
+  [data-state=sleep] .zzz { animation: float 2.4s ease-in-out infinite; }
+  [data-state=sleep] #water { animation: ripple 3.2s ease-in-out infinite; }
+  [data-state=sad] .ov-cloud { animation: cloudDrift 2.8s ease-in-out infinite; }
+  [data-state=sad] #water { animation: ripple 2.4s ease-in-out infinite; }
+  .sparkle { transform-box: fill-box; transform-origin: center; animation: sparkle 1.2s ease-in-out infinite; }
+  .heart { transform-box: fill-box; transform-origin: center; animation: heartFloat 1.8s ease-in-out infinite; }
+
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  @keyframes greetBounce { 0%,100% { transform: translateY(0) rotate(0); } 35% { transform: translateY(-7px) rotate(-2deg); } 70% { transform: translateY(-2px) rotate(2deg); } }
+  @keyframes wave { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-35deg); } }
+  @keyframes nod { from { transform: rotate(-3deg); } to { transform: rotate(8deg); } }
+  @keyframes talk { from { transform: scaleY(1); } to { transform: scaleY(.72); } }
+  @keyframes blink { 0%, 42%, 46%, 100% { transform: scaleY(1); } 44% { transform: scaleY(.08); } }
+  @keyframes bigEyes { from { transform: scale(1); } to { transform: scale(1.7); } }
+  @keyframes startled { from { transform: translateY(0); } to { transform: translateY(-7px); } }
+  @keyframes spinHop { 0% { transform: rotate(0) translateY(0); } 45% { transform: rotate(180deg) translateY(-16px); } 100% { transform: rotate(360deg) translateY(0); } }
+  @keyframes angryShake { 0%,100% { transform: translateX(0) rotate(0); } 50% { transform: translateX(4px) rotate(2deg); } }
+  @keyframes nibble { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(3px) rotate(2deg); } }
+  @keyframes foodPop { from { transform: translateY(-10px) scale(.5); } to { transform: translateY(0) scale(1); } }
+  @keyframes swim { 0%,100% { transform: translateX(-8px) rotate(-3deg); } 50% { transform: translateX(8px) rotate(3deg); } }
+  @keyframes groom { from { transform: rotate(-8deg); } to { transform: rotate(30deg); } }
+  @keyframes curiousLook { from { transform: rotate(-8deg); } to { transform: rotate(12deg); } }
+  @keyframes nightSway { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px) rotate(-2deg); } }
+  @keyframes stretch { from { transform: scaleY(1); } to { transform: scaleY(1.08); } }
+  @keyframes capWiggle { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-5deg); } }
+  @keyframes look { from { transform: rotate(4deg); } to { transform: rotate(14deg); } }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  @keyframes happyHop { 0%,100% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-18px) rotate(-3deg); } 75% { transform: translateY(-5px) rotate(3deg); } }
+  @keyframes celebrateJump { 0%,100% { transform: translateY(0) scaleX(1); } 35% { transform: translateY(-25px) scaleX(.96); } 70% { transform: translateY(-5px) scaleX(1.02); } }
+  @keyframes celebrateHead { 0%,100% { transform: rotate(0); } 35% { transform: rotate(-8deg); } 70% { transform: rotate(8deg); } }
+  @keyframes dance { from { transform: rotate(-9deg) translateY(0); } to { transform: rotate(9deg) translateY(-10px); } }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+  @keyframes impatientBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes footTap { from { transform: rotate(-3deg); } to { transform: rotate(12deg); } }
+  @keyframes popIn { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+  @keyframes ripple { 0%,100% { transform: scaleX(1); opacity: .3; } 50% { transform: scaleX(1.08); opacity: .5; } }
+  @keyframes sparkle { 0%,100% { opacity: .25; transform: scale(.65) rotate(0); } 50% { opacity: 1; transform: scale(1.15) rotate(25deg); } }
+  @keyframes heartFloat { 0% { opacity: 0; transform: translateY(7px) scale(.7); } 30%,70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-22px) scale(1.05); } }
+  @keyframes cloudDrift { 0%,100% { transform: translateX(-2px); } 50% { transform: translateX(5px); } }
+  @keyframes tap { 0%,100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
+  @keyframes glance { 0%,40%,100% { transform: rotate(0); } 55%,85% { transform: rotate(-8deg); } }
+  @keyframes tear { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(26px); opacity: 0; } }
+  @keyframes float { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-18px); opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fall { 0% { transform: translateY(-10px) rotate(0) scale(1); opacity: 1; } 55% { transform: translateY(90px) rotate(220deg) scale(.8); } 100% { transform: translateY(190px) rotate(360deg) scale(.4); opacity: 0; } }
+  .confetti { animation: fall 1.8s ease-in forwards; }
+</style>
+</head>
+<body>
+<div id="bubble"></div>
+<div id="stage" data-state="idle">
+<svg viewBox="0 0 240 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- su / zəmin -->
+  <ellipse id="water" cx="100" cy="182" rx="80" ry="8" fill="#4aa3df" opacity=".35"/>
+
+  <!-- laptop (yazanda ekranı yanır) -->
+  <g>
+    <rect x="170" y="128" width="56" height="38" rx="3" fill="#3b3f4a"/>
+    <rect x="175" y="133" width="46" height="28" rx="2" fill="#1d2330"/>
+    <rect class="ov ov-screen" x="175" y="133" width="46" height="28" rx="2" fill="#6ee7a8" opacity="0"/>
+    <path d="M164 170 h68 l-4 -5 h-60 z" fill="#555a66"/>
+  </g>
+
+  <!-- ördək -->
+  <g id="duck">
+    <path d="M58 140 L38 128 L52 152 Z" fill="#F2B90F"/>
+    <ellipse cx="96" cy="140" rx="46" ry="34" fill="#FFD93B"/>
+    <path id="foot1" d="M88 172 h16 l-4 6 h-12 z" fill="#FF9F1C"/>
+    <path id="foot2" d="M112 172 h16 l-4 6 h-12 z" fill="#FF9F1C"/>
+    <ellipse id="wing" cx="88" cy="140" rx="20" ry="13" fill="#F5C518"/>
+
+    <g id="head">
+      <circle cx="114" cy="86" r="28" fill="#FFD93B"/>
+      <ellipse id="beak" cx="146" cy="92" rx="15" ry="7" fill="#FF9F1C"/>
+      <circle id="eye" cx="125" cy="80" r="4.2" fill="#222"/>
+      <circle cx="126.5" cy="78.5" r="1.3" fill="#fff"/>
+      <path id="eyeClosed" d="M120 81 q5 5 10 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <ellipse cx="120" cy="94" rx="5" ry="3" fill="#FF8A8A" opacity=".5"/>
+      <!-- göz yaşı -->
+      <g class="ov ov-error">
+        <ellipse class="tear" cx="127" cy="88" rx="2.2" ry="3.4" fill="#4aa3df"/>
+      </g>
+      <g class="glasses" opacity="0" fill="none" stroke="#222" stroke-width="2">
+        <circle cx="117" cy="80" r="8"/><circle cx="133" cy="80" r="8"/><path d="M125 80h-2"/>
+      </g>
+    </g>
+  </g>
+
+  <g class="cap" opacity="0">
+    <path d="M91 61 Q112 37 135 61Z" fill="#e5484d"/>
+    <circle cx="112" cy="45" r="5" fill="#fff"/>
+  </g>
+  <g class="nightCap" opacity="0">
+    <path d="M91 61 Q112 37 135 61Z" fill="#3859a8"/>
+    <circle cx="112" cy="45" r="5" fill="#F5C518"/>
+  </g>
+
+  <!-- xəta nişanı -->
+  <g class="ov ov-error">
+    <text x="150" y="52" font-size="26" font-weight="bold" fill="#e5484d">?!</text>
+  </g>
+
+  <!-- yağış buludu (FAIL) -->
+  <g class="ov ov-cloud">
+    <ellipse cx="108" cy="32" rx="26" ry="12" fill="#8a93a6"/>
+    <ellipse cx="90" cy="38" rx="16" ry="9" fill="#8a93a6"/>
+    <ellipse cx="128" cy="38" rx="16" ry="9" fill="#8a93a6"/>
+    <path d="M96 52 v8 M108 52 v10 M120 52 v8" stroke="#4aa3df" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- canlı uğur effektləri -->
+  <g class="ov ov-sparkle" fill="#F5C518">
+    <path class="sparkle" d="M190 72 l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/>
+    <path class="sparkle" d="M54 76 l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" style="animation-delay:.45s"/>
+  </g>
+
+  <g class="ov ov-heart" fill="#e5484d">
+    <path class="heart" d="M168 72 C160 63 148 72 168 88 C188 72 176 63 168 72Z"/>
+    <path class="heart" d="M184 92 C178 85 169 91 184 103 C199 91 190 85 184 92Z" style="animation-delay:.7s"/>
+  </g>
+
+  <g class="ov ov-food">
+    <circle cx="160" cy="120" r="6" fill="#e5484d"/>
+    <path d="M160 112v-5M155 114l-3-4M165 114l3-4" stroke="#6da544" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <g class="ov ov-night" fill="#c4d7ff">
+    <path d="M45 25a10 10 0 1 0 12 13 9 9 0 1 1-12-13Z"/>
+    <circle cx="160" cy="30" r="2"/><circle cx="174" cy="45" r="1.5"/>
+  </g>
+
+  <!-- zzz -->
+  <g class="ov ov-zzz">
+    <text class="zzz" x="140" y="56" font-size="18" font-weight="bold" fill="#8a93a6">z</text>
+    <text class="zzz" x="156" y="42" font-size="14" font-weight="bold" fill="#8a93a6" style="animation-delay:.8s">z</text>
+  </g>
+
+  <!-- saat (səbirsiz) -->
+  <g class="ov ov-clock">
+    <circle cx="38" cy="52" r="16" fill="#fff" stroke="#555" stroke-width="2"/>
+    <line x1="38" y1="52" x2="38" y2="42" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+    <line id="clockHand" x1="38" y1="52" x2="46" y2="52" stroke="#e5484d" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <g id="confetti"></g>
+</svg>
+</div>
+
+<div id="controls">
+  <label id="nameLabel" for="nameInput">Dostunun adı</label>
+  <input id="nameInput" maxlength="24" placeholder="Quackie" aria-label="Ördəyin adı">
+  <select id="accessory" aria-label="Aksesuar seç">
+    <option value="none">Aksesuar yoxdur</option>
+    <option value="glasses">Eynək</option>
+    <option value="cap">Papaq</option>
+    <option value="night">Gecə papağı</option>
+  </select>
+  <button id="feedButton" type="button">🍎 Yemək ver</button>
+  <button id="sleepButton" type="button">Sleep</button>
+  <button id="wakeButton" type="button">Wake Up</button>
+</div>
+<div id="duckMenu" role="menu">
+  <button type="button" data-action="feed">🍎 Yemək ver</button>
+  <button type="button" data-action="sleep">😴 Yatır</button>
+  <button type="button" data-action="wake">☀️ Oyat</button>
+</div>
+
+<script nonce="__NONCE__">
+  const vscode = acquireVsCodeApi();
+  const stage = document.getElementById('stage');
+  const bubble = document.getElementById('bubble');
+  const confetti = document.getElementById('confetti');
+  const duck = document.getElementById('duck');
+  const head = document.getElementById('head');
+  const nameInput = document.getElementById('nameInput');
+  const accessorySelect = document.getElementById('accessory');
+  const duckMenu = document.getElementById('duckMenu');
+  const COLORS = ['#e5484d', '#4aa3df', '#6ee7a8', '#F5C518', '#b180ff'];
+  let confettiTimer;
+  let idleMotionTimer;
+  let clickCount = 0;
+  let clickResetTimer;
+
+  function burst(count) {
+    const NS = 'http://www.w3.org/2000/svg';
+    for (let i = 0; i < count; i++) {
+      const c = document.createElementNS(NS, 'rect');
+      c.setAttribute('x', 20 + Math.random() * 200);
+      c.setAttribute('y', 0);
+      c.setAttribute('width', 6);
+      c.setAttribute('height', 10);
+      c.setAttribute('fill', COLORS[i % COLORS.length]);
+      c.setAttribute('class', 'confetti');
+      c.style.animationDelay = (Math.random() * 0.6) + 's';
+      confetti.appendChild(c);
+      setTimeout(() => c.remove(), 2600);
+    }
+  }
+
+  function showState(state, text = '') {
+    stage.dataset.state = state;
+    bubble.textContent = text;
+    bubble.classList.toggle('show', !!text);
+  }
+
+  function action(type) {
+    vscode.postMessage({ type });
+    duckMenu.classList.remove('show');
+  }
+
+  function startIdleMotion() {
+    clearTimeout(idleMotionTimer);
+    idleMotionTimer = setTimeout(() => {
+      if (stage.dataset.state === 'idle') {
+        const motions = ['look', 'groom', 'swim'];
+        showState(motions[Math.floor(Math.random() * motions.length)]);
+        setTimeout(() => {
+          if (stage.dataset.state !== 'sleep') showState('idle');
+        }, 2600);
+      }
+      startIdleMotion();
+    }, 6500 + Math.random() * 6000);
+  }
+
+  duck.addEventListener('click', () => {
+    clickCount += 1;
+    clearTimeout(clickResetTimer);
+    clickResetTimer = setTimeout(() => { clickCount = 0; }, 1800);
+    action(clickCount >= 3 ? 'angry' : 'duckClick');
+  });
+
+  head.addEventListener('click', (event) => {
+    event.stopPropagation();
+    action('headClick');
+  });
+
+  duck.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    duckMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 150)}px`;
+    duckMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 120)}px`;
+    duckMenu.classList.add('show');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!duckMenu.contains(event.target) && event.target !== duck) duckMenu.classList.remove('show');
+  });
+  duckMenu.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (button) action(button.dataset.action);
+  });
+  document.getElementById('feedButton').addEventListener('click', () => action('feed'));
+  document.getElementById('sleepButton').addEventListener('click', () => action('sleep'));
+  document.getElementById('wakeButton').addEventListener('click', () => action('wake'));
+  nameInput.addEventListener('change', () => vscode.postMessage({ type: 'setName', name: nameInput.value }));
+  accessorySelect.addEventListener('change', () => vscode.postMessage({ type: 'setAccessory', accessory: accessorySelect.value }));
+
+  window.addEventListener('message', (e) => {
+    if (e.data.type === 'config') {
+      nameInput.value = e.data.name || 'Quackie';
+      accessorySelect.value = e.data.accessory || 'none';
+      stage.dataset.accessory = e.data.accessory || 'none';
+      return;
+    }
+    const { state, text } = e.data;
+    showState(state, text || '');
+    startIdleMotion();
+    clearInterval(confettiTimer);
+    if (state === 'celebrate') {
+      burst(40);
+      confettiTimer = setInterval(() => burst(25), 1500);
+    } else if (state === 'happy' || state === 'dance') {
+      burst(14);
+    }
+  });
+
+  accessorySelect.addEventListener('change', () => { stage.dataset.accessory = accessorySelect.value; });
+  startIdleMotion();
+  vscode.postMessage({ ready: true });
+</script>
+</body>
+</html>

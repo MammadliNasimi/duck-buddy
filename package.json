@@ -1,0 +1,28 @@
+{
+  "name": "duck-buddy",
+  "displayName": "Duck Buddy",
+  "description": "Kod yazarkən səninlə birlikdə sevinən və kədərlənən ördək dostun.",
+  "version": "0.1.0",
+  "publisher": "duckfriend",
+  "license": "MIT",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "duckBuddy", "title": "Ördək", "icon": "media/duck.svg" }
+      ]
+    },
+    "views": {
+      "duckBuddy": [
+        { "type": "webview", "id": "duckBuddy.view", "name": "Ördək dostun" }
+      ]
+    },
+    "commands": [
+      { "command": "duckBuddy.show", "title": "Duck Buddy: Ördəyi göstər" },
+      { "command": "duckBuddy.demo", "title": "Duck Buddy: Bütün reaksiyaları göstər (demo)" }
+    ]
+  }
+}
